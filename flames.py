@@ -49,7 +49,9 @@ import time
 from gamelib import librgb
 from gamelib.vector import Vector
 
-RES = array((24,16))
+RES = array((8,12))
+displayScale = 8
+
 MAX = 246
 RESIDUAL = 86
 HSPREAD, VSPREAD = 26, 78
@@ -59,13 +61,13 @@ def main():
     "main function called when the script is run"
     #first we just init pygame and create some empty arrays to work with    
     pygame.init()
-    screen = pygame.display.set_mode(RES, 0, 8)
+    screen = pygame.display.set_mode(RES*8, 0, 8)
     print screen.get_flags()
     cmap = setpalette(screen)
-    flame = zeros(RES/2 + (0,3), dtype=uint32)
+    flame = zeros(RES + (0,3), dtype=integer)
     print flame.shape
-    doubleflame = zeros(RES)
-    randomflamebase(flame)    
+    scaledDisplay = zeros(RES*displayScale, dtype=integer)
+    #randomflamebase(flame)    
 
     print "Connecting to display ..."
     rgb = librgb.RGB("127.0.0.1")
@@ -73,13 +75,19 @@ def main():
     rgb.invertedY = True
     rgb.clear((0,0,0))
 
+    flame[3:5,8:10] = randint(0, MAX, 4).reshape((2,2))
     #the mainloop is pretty simple, the work is done in these funcs
     while not pygame.event.peek((QUIT,KEYDOWN,MOUSEBUTTONDOWN)):
         modifyflamebase(flame)
-        #flame[20:30,40:60] = 50
+        #flame[3:5,8:10] += randint(VARMIN, VARMAX, 4).reshape((2,2))
+        #flame[:] = where(flame > MAX, 0, flame)
+
+        #flame[4,8] += 32
+
         processflame(flame)
-        #flame[50:90,50:70] += 12
-        blitdouble(screen, flame, doubleflame)
+        #blitdouble(screen, flame, doubleflame)
+        scaledDisplay = flame[:,:-3].repeat(displayScale, axis=0).repeat(displayScale, axis=1)
+        blit_array(screen, scaledDisplay)
         pygame.display.flip()
 
         flame = clip(flame, 0, 255)
@@ -103,7 +111,7 @@ def setpalette(screen):
 def randomflamebase(flame):
     "just set random values on the bottom row"
     flame[:,-1] = randint(0, MAX, flame.shape[0])
-    print flame[:,-1]
+    #print flame[:,-1]
 
 
 def modifyflamebase(flame):
@@ -113,8 +121,8 @@ def modifyflamebase(flame):
     add(bottom, mod, bottom)
     maximum(bottom, 0, bottom)
     #if values overflow, reset them to 0
-    bottom[:] = choose(greater(bottom,MAX), (bottom,0))
-    #bottom = where(bottom > MAX, 0, bottom)
+    #bottom[:] = choose(greater(bottom,MAX), (bottom,0))
+    bottom[:] = where(bottom > MAX, 0, bottom)
 
 
 def processflame(flame):
@@ -132,10 +140,10 @@ def processflame(flame):
     tmp = flipped * 20
     right_shift(tmp, 8, tmp)
     tmp2 = tmp >> 1
-    add(flipped[1:,:], tmp2[:-1,:], flipped[1:,:])
-    add(flipped[:-1,:], tmp2[1:,:], flipped[:-1,:])
-    add(flipped[1:,1:], tmp[:-1,:-1], flipped[1:,1:])
-    add(flipped[:-1,1:], tmp[1:,:-1], flipped[:-1,1:])
+    add(flipped[1:,:], tmp2[:-1,:], flipped[1:,:]) # blur unten
+    add(flipped[:-1,:], tmp2[1:,:], flipped[:-1,:]) # blur oben
+    add(flipped[1:,1:], tmp[:-1,:-1], flipped[1:,1:]) # blur rechts unten
+    add(flipped[:-1,1:], tmp[1:,:-1], flipped[:-1,1:]) # blur rechts oben
 
     tmp = flipped * 80
     right_shift(tmp, 8, tmp)
@@ -157,11 +165,11 @@ def blitdouble(screen, flame, doubleflame):
 
 # ---------------------------------------------------------------
 def set_plasma_buffer(rgb, cmap, plasmaBuffer):
-    xSize, ySize = plasmaBuffer.shape
+    ySize, xSize = plasmaBuffer.shape
     for x in range(0, xSize):
         for y in range(0, ySize):
             #print x, y,  plasmaBuffer[x][y]
-            rgb.setPixel(Vector(x,y), cmap[plasmaBuffer[x][y]])
+            rgb.setPixel(Vector(x,y), cmap[plasmaBuffer[y][x]])
 
 
 if __name__ == '__main__': main()
